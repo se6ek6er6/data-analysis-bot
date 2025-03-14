@@ -5,10 +5,25 @@ from datetime import datetime
 import pandas as pd
 from .analysis import process_csv
 from .utils import ensure_dir_exists, generate_unique_id, save_uploaded_file, create_file_copies
+from bot.config import BOT_TOKEN, SERVER_URL
+import telebot
+from bot.bot import bot
 
 app = Flask(__name__, 
             template_folder='../templates',
             static_folder='../static')
+
+@app.route('/')
+def index():
+    return "Бот работает!", 200
+
+# Добавьте webhook-маршрут
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
+def webhook():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "OK"
 
 @app.route('/process', methods=['POST'])
 def process_file():
@@ -192,6 +207,13 @@ ReactDOM.render(
     return send_from_directory(os.path.dirname(js_file_path), 
                                os.path.basename(js_file_path), 
                                mimetype='application/javascript')
+
+def set_webhook():
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{SERVER_URL}/{BOT_TOKEN}")
+
+# Вызываем установку webhook при старте приложения
+set_webhook()
 
 if __name__ == '__main__':
     app.run(debug=True)

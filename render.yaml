@@ -1,6 +1,0 @@
-services:
-  - type: web
-    name: data-analysis-bot
-    env: python3.11
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot/bot.py
