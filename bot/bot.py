@@ -1,31 +1,16 @@
 import telebot
-from telebot import types
 import os
 import requests
-from .config import BOT_TOKEN, SERVER_URL
-from flask import Flask
 import json
+from .config import BOT_TOKEN, SERVER_URL
 
-bot = telebot.TeleBot(BOT_TOKEN)
-server = Flask(__name__)
-
-@server.route('/')
-def webhook():
-    return "Бот работает!", 200
-
-# Добавьте эту функцию для удаления вебхука
-def remove_webhook():
-    bot.remove_webhook()
-    print("Вебхук удален успешно")
-
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    bot.reply_to(message, "Привет! Отправьте мне CSV файл для анализа, и я создам интерактивные визуализации.")
-
-@bot.message_handler(content_types=['document'])
+# Функция обработки документов
 def handle_document(message):
     temp_file_name = None
     try:
+        # Получаем экземпляр бота из глобальной области видимости
+        bot = telebot.TeleBot(BOT_TOKEN)
+        
         # Проверяем, что это CSV файл
         if not message.document.file_name.endswith('.csv'):
             bot.reply_to(message, "Пожалуйста, отправьте CSV файл.")
@@ -109,6 +94,7 @@ def handle_document(message):
                 bot.reply_to(message, error_message)
             
     except Exception as e:
+        bot = telebot.TeleBot(BOT_TOKEN)
         bot.reply_to(message, f"Произошла ошибка: {str(e)}")
     finally:
         # Удаляем временный файл в любом случае
@@ -119,8 +105,3 @@ def handle_document(message):
                 print(f"Временный файл {temp_file_name} удален")
             except Exception as e:
                 print(f"Ошибка при удалении временного файла: {e}")
-
-if __name__ == '__main__':
-    print("Бот запущен. Нажмите Ctrl+C для завершения.")
-    remove_webhook()
-    bot.polling(none_stop=True)
