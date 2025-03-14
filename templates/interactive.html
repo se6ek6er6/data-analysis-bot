@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивный анализ данных</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    
+    <!-- Базовые библиотеки -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/papaparse@5.3.1/papaparse.min.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    
+    <style>
+        .data-table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .data-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .debug-info {
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app" data-analysis-id="{{ analysis_id }}" class="container mx-auto px-4 py-8">
+        <h1 class="text-2xl font-bold mb-6">Загрузка данных...</h1>
+        <div id="loading-indicator" class="text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <p class="mt-2">Пожалуйста, подождите...</p>
+        </div>
+    </div>
+    
+    <script type="text/babel">
+        // Основной компонент приложения
+        const App = () => {
+            const [data, setData] = React.useState([]);
+            const [columns, setColumns] = React.useState([]);
+            const [numericColumns, setNumericColumns] = React.useState([]);
+            const [categoricalColumns, setCategoricalColumns] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [error, setError] = React.useState(null);
+            const [logs, setLogs] = React.useState([]);
+            
+            const log = (message) => {
+                console.log(message);
+                setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+            };
+            
+            React.useEffect(() => {
+                const fetchData = async () => {
+                    try {
+                        log("Начинаем загрузку данных...");
+                        
+                        // Получаем ID анализа из атрибута данных
+                        const analysisId = document.getElementById('app').getAttribute('data-analysis-id');
+                        log(`ID анализа: ${analysisId}`);
+                        
+                        // Формируем путь к файлу данных
+                        const dataUrl = `/static/analyses/${analysisId}/data.csv`;
+                        log(`Пытаемся загрузить файл: ${dataUrl}`);
+                        
+                        // Загружаем CSV файл
+                        const response = await fetch(dataUrl);
+                        if (!response.ok) {
+                            throw new Error(`Ошибка загрузки файла: ${response.status} ${response.statusText}`);
+                        }
+                        
+                        const csvText = await response.text();
+                        log(`Файл успешно загружен (${csvText.length} байт)`);
+                        
+                        // Парсим CSV
+                        Papa.parse(csvText, {
+                            header: true,
+                            dynamicTyping: true,
+                            skipEmptyLines: true,
+                            complete: (results) => {
+                                log(`Парсинг успешно завершен, найдено ${results.data.length} строк`);
+                                
+                                if (results.data && results.data.length > 0) {
+                                    setData(results.data);
+                                    
+                                    // Анализируем столбцы
+                                    const allColumns = results.meta.fields || [];
+                                    log(`Найдено ${allColumns.length} столбцов: ${allColumns.join(', ')}`);
+                                    setColumns(allColumns);
+                                    
+                                    // Разделяем столбцы на числовые и категориальные
+                                    const numeric = [];
+                                    const categorical = [];
+                                    
+                                    allColumns.forEach(col => {
+                                        // Проверяем первые 10 записей или все записи, если их меньше 10
+                                        const sampleSize = Math.min(10, results.data.length);
+                                        const sample = results.data.slice(0, sampleSize);
+                                        
+                                        // Если все значения в выборке числовые, считаем столбец числовым
+                                        const isNumeric = sample.every(row => 
+                                            row[col] === null || 
+                                            row[col] === undefined || 
+                                            typeof row[col] === 'number'
+                                        );
+                                        
+                                        if (isNumeric) {
+                                            numeric.push(col);
+                                        } else {
+                                            categorical.push(col);
+                                        }
+                                    });
+                                    
+                                    log(`Числовые столбцы (${numeric.length}): ${numeric.join(', ')}`);
+                                    log(`Категориальные столбцы (${categorical.length}): ${categorical.join(', ')}`);
+                                    
+                                    setNumericColumns(numeric);
+                                    setCategoricalColumns(categorical);
+                                } else {
+                                    log("Предупреждение: данные пусты или некорректны");
+                                }
+                                
+                                setLoading(false);
+                            },
+                            error: (error) => {
+                                log(`Ошибка при парсинге CSV: ${error}`);
+                                setError(`Не удалось обработать данные: ${error}`);
+                                setLoading(false);
+                            }
+                        });
+                    } catch (error) {
+                        log(`Критическая ошибка: ${error.message}`);
+                        setError(error.message);
+                        setLoading(false);
+                    }
+                };
+                
+                fetchData();
+            }, []);
+            
+            if (loading) {
+                return (
+                    <div className="text-center p-8">
+                        <h1 className="text-2xl font-bold mb-6">Загрузка данных...</h1>
+                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                        <div className="debug-info">
+                            {logs.map((log, index) => (
+                                <div key={index}>{log}</div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+            
+            if (error) {
+                return (
+                    <div className="p-8">
+                        <h1 className="text-2xl font-bold text-red-600 mb-6">Ошибка загрузки данных</h1>
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                            {error}
+                        </div>
+                        <div className="debug-info">
+                            {logs.map((log, index) => (
+                                <div key={index}>{log}</div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+            
+            return (
+                <div className="p-4">
+                    <h1 className="text-2xl font-bold mb-6">Интерактивный анализ данных</h1>
+                    
+                    {/* Общая информация о данных */}
+                    <div className="card mb-6">
+                        <h2 className="text-xl font-semibold mb-4">Обзор данных</h2>
+                        <div className="grid md:grid-cols-3 gap-4">
+                            <div className="bg-blue-50 p-4 rounded">
+                                <h3 className="font-medium text-blue-800">Количество записей</h3>
+                                <p className="text-2xl font-bold">{data.length}</p>
+                            </div>
+                            <div className="bg-green-50 p-4 rounded">
+                                <h3 className="font-medium text-green-800">Числовых столбцов</h3>
+                                <p className="text-2xl font-bold">{numericColumns.length}</p>
+                            </div>
+                            <div className="bg-purple-50 p-4 rounded">
+                                <h3 className="font-medium text-purple-800">Категориальных столбцов</h3>
+                                <p className="text-2xl font-bold">{categoricalColumns.length}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Таблица данных */}
+                    <div className="card">
+                        <h2 className="text-xl font-semibold mb-4">Предпросмотр данных</h2>
+                        <div className="overflow-x-auto">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        {columns.map(column => (
+                                            <th key={column}>{column}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data.slice(0, 10).map((row, rowIndex) => (
+                                        <tr key={rowIndex}>
+                                            {columns.map(column => (
+                                                <td key={`${rowIndex}-${column}`}>
+                                                    {row[column] !== null ? row[column] : 'N/A'}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {data.length > 10 && (
+                            <p className="text-gray-600 text-sm mt-2">
+                                Показаны первые 10 из {data.length} записей.
+                            </p>
+                        )}
+                    </div>
+                    
+                    {/* Основная статистика по числовым столбцам */}
+                    {numericColumns.length > 0 && (
+                        <div className="card mt-6">
+                            <h2 className="text-xl font-semibold mb-4">Статистика по числовым данным</h2>
+                            <div className="overflow-x-auto">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Показатель</th>
+                                            {numericColumns.map(column => (
+                                                <th key={column}>{column}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Минимум</strong></td>
+                                            {numericColumns.map(column => (
+                                                <td key={`min-${column}`}>
+                                                    {Math.min(...data.filter(row => row[column] !== null).map(row => row[column]))}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Максимум</strong></td>
+                                            {numericColumns.map(column => (
+                                                <td key={`max-${column}`}>
+                                                    {Math.max(...data.filter(row => row[column] !== null).map(row => row[column]))}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Среднее</strong></td>
+                                            {numericColumns.map(column => {
+                                                const values = data.filter(row => row[column] !== null).map(row => row[column]);
+                                                const sum = values.reduce((acc, val) => acc + val, 0);
+                                                const avg = values.length > 0 ? sum / values.length : 0;
+                                                return <td key={`avg-${column}`}>{avg.toFixed(2)}</td>;
+                                            })}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Отладочная информация */}
+                    <div className="debug-info mt-8">
+                        <h3 className="font-bold mb-2">Отладочная информация:</h3>
+                        {logs.map((log, index) => (
+                            <div key={index}>{log}</div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+        
+        // Рендерим приложение
+        ReactDOM.render(<App />, document.getElementById('app'));
+    </script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты анализа данных</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .viz-card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .viz-card img {
+            max-width: 100%;
+            height: auto;
+        }
+        .viz-header {
+            padding: 20px 0;
+            background-color: #f8f9fa;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="viz-header">
+        <div class="container">
+            <h1>Результаты анализа</h1>
+            <p class="lead">Файл: {{ file_name }}</p>
+            <p>Создано: {{ created_at }}</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Графики распределения -->
+        <section id="distributions">
+            <h2>Распределения</h2>
+            <div class="row">
+                {% for viz in visualizations if viz.type == 'distribution' %}
+                <div class="col-md-6">
+                    <div class="card viz-card">
+                        <div class="card-header">
+                            <h5>Распределение {{ viz.column }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='analyses/' + analysis_id + '/' + viz.path) }}" 
+                                 alt="Распределение {{ viz.column }}" class="img-fluid">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Столбчатые диаграммы -->
+        <section id="bar-charts">
+            <h2>Распределения категорий</h2>
+            <div class="row">
+                {% for viz in visualizations if viz.type == 'bar' %}
+                <div class="col-md-6">
+                    <div class="card viz-card">
+                        <div class="card-header">
+                            <h5>Количество {{ viz.column }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='analyses/' + analysis_id + '/' + viz.path) }}" 
+                                 alt="Количество {{ viz.column }}" class="img-fluid">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Корреляционная тепловая карта -->
+        <section id="correlations">
+            <h2>Корреляционный анализ</h2>
+            <div class="row">
+                {% for viz in visualizations if viz.type == 'correlation' %}
+                <div class="col-md-8 mx-auto">
+                    <div class="card viz-card">
+                        <div class="card-header">
+                            <h5>Корреляционная матрица</h5>
+                        </div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='analyses/' + analysis_id + '/' + viz.path) }}" 
+                                 alt="Корреляционная матрица" class="img-fluid">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Точечные диаграммы -->
+        <section id="scatter-plots">
+            <h2>Анализ взаимосвязей</h2>
+            <div class="row">
+                {% for viz in visualizations if viz.type == 'scatter' %}
+                <div class="col-md-6">
+                    <div class="card viz-card">
+                        <div class="card-header">
+                            <h5>{{ viz.x_column }} и {{ viz.y_column }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='analyses/' + analysis_id + '/' + viz.path) }}" 
+                                 alt="{{ viz.x_column }} и {{ viz.y_column }}" class="img-fluid">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Временные ряды -->
+        <section id="time-series">
+            <h2>Временные ряды</h2>
+            <div class="row">
+                {% for viz in visualizations if viz.type == 'time_series' %}
+                <div class="col-md-6">
+                    <div class="card viz-card">
+                        <div class="card-header">
+                            <h5>{{ viz.y_column }} по {{ viz.x_column }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='analyses/' + analysis_id + '/' + viz.path) }}" 
+                                 alt="{{ viz.y_column }} по {{ viz.x_column }}" class="img-fluid">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
