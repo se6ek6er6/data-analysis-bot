@@ -2,7 +2,7 @@ import telebot
 from telebot import types
 import os
 import requests
-from config import BOT_TOKEN, SERVER_URL
+from .config import BOT_TOKEN, SERVER_URL
 from flask import Flask
 import json
 

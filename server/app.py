@@ -7,7 +7,8 @@ from .analysis import process_csv
 from .utils import ensure_dir_exists, generate_unique_id, save_uploaded_file, create_file_copies
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from bot.config import BOT_TOKEN, SERVER_URL
 import telebot
 from bot.bot import bot
