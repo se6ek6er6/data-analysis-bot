@@ -4,6 +4,7 @@ import os
 import requests
 from config import BOT_TOKEN, SERVER_URL
 from flask import Flask
+import json
 
 bot = telebot.TeleBot(BOT_TOKEN)
 server = Flask(__name__)
@@ -44,36 +45,68 @@ def handle_document(message):
         
         # Отправляем файл на бэкенд для обработки
         with open(temp_file_name, 'rb') as file_to_send:
-            files = {'file': (message.document.file_name, file_to_send)}
-            user_data = {'user_id': str(message.from_user.id), 'username': message.from_user.username}
-            
-            response = requests.post(f'{SERVER_URL}/process', files=files, data=user_data)
-        
-        if response.status_code == 200:
-            # Остальной код...
-            result = response.json()
-            web_app_url = result.get('web_app_url')
-            analysis_id = result.get('analysis_id')
-            
-            # Отправляем текстовые URL вместо кнопок для локальной разработки
-            bot.reply_to(
-                message, 
-                f"Ваш файл успешно обработан!\n\n"
-                f"Просмотр графиков: {SERVER_URL}{web_app_url}\n\n"
-                f"Интерактивный анализ: {SERVER_URL}/interactive/{analysis_id}"
-            )
-        else:
-            # Код обработки ошибок...
-            error_msg = "Ошибка при обработке файла."
-            if response.text:
-                try:
-                    error_data = response.json()
-                    if 'error' in error_data:
-                        error_msg += f" Причина: {error_data['error']}"
-                except:
-                    error_msg += f" Код ошибки: {response.status_code}"
-                    
-            bot.reply_to(message, error_msg)
+            try:
+                # Готовим данные для отправки
+                files = {'file': (message.document.file_name, file_to_send)}
+                user_data = {'user_id': str(message.from_user.id), 'username': message.from_user.username}
+                
+                # Отправляем запрос на сервер
+                print(f"Отправляем файл {message.document.file_name} на сервер {SERVER_URL}/process")
+                response = requests.post(f'{SERVER_URL}/process', files=files, data=user_data, timeout=60)
+                
+                # Проверяем статус ответа
+                print(f"Получен ответ от сервера, статус: {response.status_code}")
+                
+                if response.status_code == 200:
+                    try:
+                        result = response.json()
+                        web_app_url = result.get('web_app_url')
+                        analysis_id = result.get('analysis_id')
+                        
+                        if not web_app_url or not analysis_id:
+                            raise ValueError("Не удалось получить необходимые данные из ответа сервера")
+                        
+                        # Отправляем успешный ответ пользователю
+                        bot.reply_to(
+                            message, 
+                            f"Ваш файл успешно обработан!\n\n"
+                            f"Просмотр графиков: {SERVER_URL}{web_app_url}\n\n"
+                            f"Интерактивный анализ: {SERVER_URL}/interactive/{analysis_id}"
+                        )
+                    except json.JSONDecodeError:
+                        # Если ответ сервера не в формате JSON
+                        print(f"Ошибка: Не удалось декодировать JSON. Текст ответа: {response.text[:500]}")
+                        bot.reply_to(message, "Ошибка при обработке ответа сервера. Пожалуйста, попробуйте позже.")
+                    except Exception as json_error:
+                        # Другие ошибки при обработке JSON
+                        print(f"Ошибка при обработке JSON: {str(json_error)}")
+                        bot.reply_to(message, f"Ошибка при обработке данных: {str(json_error)}")
+                else:
+                    # Обработка статусов ошибки
+                    error_msg = f"Ошибка при обработке файла. Код ошибки: {response.status_code}"
+                    try:
+                        if response.text:
+                            error_data = response.json()
+                            if 'error' in error_data:
+                                error_msg = f"Ошибка при обработке файла. Причина: {error_data['error']}"
+                                print(f"Сервер вернул ошибку: {error_data['error']}")
+                    except Exception as error_parse_error:
+                        print(f"Не удалось распарсить ответ с ошибкой: {str(error_parse_error)}")
+                        error_msg += f"\nТекст ответа: {response.text[:200]}"
+                        
+                    bot.reply_to(message, error_msg)
+            except requests.RequestException as req_error:
+                # Обработка ошибок соединения с сервером
+                error_message = f"Ошибка соединения с сервером: {str(req_error)}"
+                print(error_message)
+                bot.reply_to(message, error_message)
+            except Exception as e:
+                # Обработка любых других неожиданных ошибок
+                error_message = f"Произошла непредвиденная ошибка: {str(e)}"
+                print(error_message)
+                import traceback
+                traceback.print_exc()
+                bot.reply_to(message, error_message)
             
     except Exception as e:
         bot.reply_to(message, f"Произошла ошибка: {str(e)}")
@@ -83,6 +116,7 @@ def handle_document(message):
             try:
                 os.close(os.open(temp_file_name, os.O_RDONLY))  # Закрываем открытые дескрипторы
                 os.remove(temp_file_name)
+                print(f"Временный файл {temp_file_name} удален")
             except Exception as e:
                 print(f"Ошибка при удалении временного файла: {e}")
 
