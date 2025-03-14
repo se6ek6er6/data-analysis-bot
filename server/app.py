@@ -21,14 +21,13 @@ app = Flask(__name__,
 def index():
     return "Бот работает!", 200
 
-# Добавьте webhook-маршрут
 @app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
     json_string = request.get_data().decode('utf-8')
-    print(f"Получен webhook: {json_string}")  # Отладочная печать
+    print(f"Received webhook data: {json_string}")  # Отладочная печать
     update = telebot.types.Update.de_json(json_string)
     bot.process_new_updates([update])
-    return "OK", 200
+    return "OK", 200  # Явно возвращаем статус 200
 
 @app.route('/process', methods=['POST'])
 def process_file():
@@ -215,7 +214,9 @@ ReactDOM.render(
 
 def set_webhook():
     bot.remove_webhook()
-    bot.set_webhook(url=f"{SERVER_URL}/{BOT_TOKEN}")
+    webhook_url = f"{SERVER_URL}/{BOT_TOKEN}"
+    print(f"Setting webhook to: {webhook_url}")
+    bot.set_webhook(url=webhook_url)
 
 # Вызываем установку webhook при старте приложения
 set_webhook()
