@@ -30,10 +30,15 @@ def index():
 
 @app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
-    json_string = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_string)
-    bot.process_new_updates([update])
-    return "OK", 200
+    print(f"Request method: {request.method}")  # Логирование метода запроса
+    if request.method == 'POST':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        print(f"Received update: {json_string}")  # Логирование содержимого запроса
+        bot.process_new_updates([update])
+        return "OK", 200
+    else:
+        return "Method Not Allowed", 405
 
 def set_webhook():
     bot.remove_webhook()
