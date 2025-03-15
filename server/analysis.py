@@ -38,7 +38,7 @@ def process_csv(file_path, output_dir):
     
     try:
         # Читаем CSV файл
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, delimiter=";")
         
         # Базовый исследовательский анализ
         data_types = detect_data_types(df)
