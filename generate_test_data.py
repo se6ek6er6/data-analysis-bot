@@ -14,5 +14,5 @@ data = {
 # Создаем DataFrame и сохраняем в CSV
 df = pd.DataFrame(data)
 df['Прибыль'] = df['Продажи'] - df['Расходы']
-df.to_csv('test_data.csv', index=False)
+df.to_csv('test_data.csv', index=False, sep=';', encoding="utf-8-sig")  # Явно указываем разделитель
 print("Файл test_data.csv создан успешно!")

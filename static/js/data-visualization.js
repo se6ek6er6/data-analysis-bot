@@ -45,6 +45,7 @@ const DataVisualizationDashboard = () => {
           header: true,
           dynamicTyping: true,
           skipEmptyLines: true,
+          delimiter: ';',
           complete: (results) => {
             addDebugInfo(`Парсинг завершен, найдено строк: ${results.data.length}`);
             
