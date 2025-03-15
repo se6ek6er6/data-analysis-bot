@@ -2,7 +2,8 @@ import telebot
 import os
 import requests
 import json
-from .config import BOT_TOKEN, SERVER_URL
+from bot.config import BOT_TOKEN, SERVER_URL
+
 
 # Функция обработки документов
 def handle_document(message):

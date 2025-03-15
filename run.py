@@ -1,6 +1,8 @@
 import os
 from flask import Flask, request, json
 import telebot
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from bot.config import BOT_TOKEN, SERVER_URL
 from server.app import setup_routes
 
