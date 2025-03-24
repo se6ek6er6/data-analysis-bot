@@ -24,6 +24,7 @@ def create_file_copies(original_path, analysis_id):
     """Создать копии файла для разных способов доступа"""
     # Копия с именем data.csv в директории анализа
     analysis_dir = os.path.dirname(original_path)
+    print(f"ПУТЬ - {analysis_dir}")
     data_csv_path = os.path.join(analysis_dir, 'data.csv')
     
     try:

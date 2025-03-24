@@ -1,6 +1,6 @@
 import matplotlib
 matplotlib.use('Agg')  # Использование не интерактивного бэкенда
-
+import csv
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -8,6 +8,7 @@ import os
 import json
 import numpy as np
 from .utils import ensure_dir_exists
+import mimetypes
 
 def detect_data_types(df):
     """Определить типы данных в DataFrame"""
@@ -18,6 +19,13 @@ def detect_data_types(df):
     # Попытка определить столбцы с датами
     for col in categorical_columns:
         try:
+            # Если в названии столбца есть слово "дата" или "date", попробуем сразу его преобразовать
+            if "дата" in col.lower() or "date" in col.lower():
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+                date_columns.append(col)
+                continue
+                
+            # Стандартная проверка преобразования
             pd.to_datetime(df[col])
             date_columns.append(col)
         except:
@@ -32,13 +40,52 @@ def detect_data_types(df):
         'date': date_columns
     }
 
-def process_csv(file_path, output_dir):
+
+# Пример использования
+#file_path = 'uploads/data.csv'
+
+def load_data(file_path):
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if mime_type == 'text/csv' or file_path.endswith('.csv'):
+        # Определяем разделитель автоматически
+        with open(file_path, 'r', encoding='utf-8') as f:
+            sample = f.read(1024)
+            delimiter = csv.Sniffer().sniff(sample).delimiter
+        return pd.read_csv(file_path, delimiter=delimiter)
+    elif mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or file_path.endswith(('.xls', '.xlsx')):
+        print(pd.read_excel(file_path, engine='openpyxl'))
+        return pd.read_excel(file_path, engine='openpyxl')
+    else:
+        raise ValueError(f"Неподдерживаемый формат файла: {file_path}")
+    
+    #if df:
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                df[col] = df[col].str.strip()  # Убираем пробелы
+                df[col] = df[col].str.replace(r'[^\d,.]', '', regex=True)  # Убираем символы ($, пробелы и т. д.)
+
+                # Попытка преобразовать строки в числовые значения
+                try:
+                    df[col] = pd.to_numeric(df[col], errors='ignore')
+                except Exception as e:
+                    print(f"Не удалось преобразовать {col}: {e}")
+
+        # Автоматически определяем и преобразуем даты
+        for col in df.columns:
+            try:
+                df[col] = pd.to_datetime(df[col], errors='ignore', dayfirst=True)  # Поддержка формата DD-MM-YY
+            except Exception as e:
+                print(f"Ошибка преобразования даты в столбце {col}: {e}")
+
+        print(df.head())
+        return df
+
+def process_type(file_path, output_dir):
     """Обработка CSV файла и создание визуализаций"""
     visualizations = []
     
     try:
-        # Читаем CSV файл
-        df = pd.read_csv(file_path, delimiter=";")
+        df = load_data(file_path)
         
         # Базовый исследовательский анализ
         data_types = detect_data_types(df)
@@ -137,15 +184,18 @@ def process_csv(file_path, output_dir):
                     pairs_count += 1
         
         # 5. Временные ряды для столбцов с датами (если есть)
+        print(f"Обработка временных рядов. Столбцы с датами: {date_columns}")
         for date_col in date_columns:
             # Проверяем, есть ли числовые столбцы для построения рядов
             if numerical_columns:
+                print(f"Обработка столбца с датой: {date_col}")
                 # Конвертируем столбец с датой
                 df[date_col] = pd.to_datetime(df[date_col])
                 df = df.sort_values(by=date_col)
                 
                 # Строим график для каждого числового столбца
                 for num_col in numerical_columns[:3]:  # Ограничимся первыми 3 столбцами
+                    print(f"Создание временного ряда: {num_col} по {date_col}")
                     fig_path = os.path.join(output_dir, f'time_{date_col}_{num_col}.png')
                     plt.figure(figsize=(12, 6))
                     plt.plot(df[date_col], df[num_col])
@@ -162,6 +212,7 @@ def process_csv(file_path, output_dir):
                         'y_column': num_col,
                         'path': f'time_{date_col}_{num_col}.png'
                     })
+                    print(f"Временной ряд создан: time_{date_col}_{num_col}.png")
         
         # 6. Создаем сводную таблицу с основными статистиками
         stats_path = os.path.join(output_dir, 'stats.json')

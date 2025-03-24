@@ -17,6 +17,7 @@ const DataVisualizationDashboard = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [debugInfo, setDebugInfo] = React.useState([]);
+  const [fileType, setFileType] = React.useState('unknown');
 
   // Функция для добавления отладочной информации
   const addDebugInfo = (message) => {
@@ -34,51 +35,96 @@ const DataVisualizationDashboard = () => {
         const analysisId = window.location.pathname.split('/').pop();
         addDebugInfo(`ID анализа: ${analysisId}`);
         
-        // Загружаем CSV файл
-        addDebugInfo("Пытаемся загрузить CSV файл");
-        const fileContent = await window.fs.readFile(`static/analyses/${analysisId}/data.csv`);
-        const csvText = new TextDecoder().decode(fileContent);
-        addDebugInfo(`CSV файл загружен, размер: ${csvText.length} байт`);
+        // Пробуем загрузить различные форматы файлов в следующем порядке:
+        // 1. CSV (data.csv)
+        // 2. Excel (преобразованный в CSV)
         
-        // Парсим CSV
-        Papa.parse(csvText, {
-          header: true,
-          dynamicTyping: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            addDebugInfo(`Парсинг завершен, найдено строк: ${results.data.length}`);
-            
-            if (results.data && results.data.length > 0) {
-              setData(results.data);
-              
-              // Получаем список столбцов
-              const allColumns = results.meta.fields || [];
-              setColumns(allColumns);
-              addDebugInfo(`Найдено столбцов: ${allColumns.join(', ')}`);
-              
-              // Пример базовой статистики
-              const numericColumns = allColumns.filter(col => {
-                return results.data.every(row => 
-                  row[col] === null || row[col] === undefined || typeof row[col] === 'number'
-                );
-              });
-              
-              addDebugInfo(`Числовые столбцы: ${numericColumns.join(', ')}`);
-            }
-            
-            setLoading(false);
-          },
-          error: (error) => {
-            addDebugInfo(`Ошибка при парсинге CSV: ${error}`);
-            setError(`Ошибка при обработке данных: ${error}`);
-            setLoading(false);
+        // Пробуем загрузить стандартный CSV
+        try {
+          addDebugInfo("Пытаемся загрузить CSV файл (data.csv)");
+          const csvPath = `static/analyses/${analysisId}/data.csv`;
+          const csvResponse = await fetch(csvPath);
+          
+          if (csvResponse.ok) {
+            const csvText = await csvResponse.text();
+            addDebugInfo(`CSV файл загружен успешно, размер: ${csvText.length} байт`);
+            setFileType('csv');
+            parseCSV(csvText);
+            return;
+          } else {
+            addDebugInfo("CSV файл не найден, проверяем другие форматы");
           }
-        });
+        } catch (csvError) {
+          addDebugInfo(`Ошибка при загрузке CSV: ${csvError.message}`);
+        }
+        
+        // Если CSV не найден, проверяем Excel (который должен быть преобразован в CSV)
+        try {
+          addDebugInfo("Пытаемся загрузить преобразованный Excel файл");
+          // На сервере Excel файл должен быть преобразован в CSV с именем excel_as_csv.csv
+          const excelCsvPath = `static/analyses/${analysisId}/excel_as_csv.csv`;
+          const excelCsvResponse = await fetch(excelCsvPath);
+          
+          if (excelCsvResponse.ok) {
+            const excelCsvText = await excelCsvResponse.text();
+            addDebugInfo(`Excel (преобразованный в CSV) файл загружен успешно, размер: ${excelCsvText.length} байт`);
+            setFileType('excel');
+            parseCSV(excelCsvText);
+            return;
+          } else {
+            addDebugInfo("Преобразованный Excel файл не найден");
+          }
+        } catch (excelError) {
+          addDebugInfo(`Ошибка при загрузке Excel: ${excelError.message}`);
+        }
+        
+        // Если ни один из форматов не найден
+        throw new Error("Не удалось найти поддерживаемый формат файла данных");
+        
       } catch (error) {
-        addDebugInfo(`Ошибка: ${error.message}`);
+        addDebugInfo(`Критическая ошибка: ${error.message}`);
         setError(`Ошибка загрузки данных: ${error.message}`);
         setLoading(false);
       }
+    };
+    
+    // Функция для парсинга CSV (используется для обоих форматов, т.к. Excel конвертируется в CSV на сервере)
+    const parseCSV = (csvText) => {
+      Papa.parse(csvText, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          addDebugInfo(`Парсинг завершен, найдено строк: ${results.data.length}`);
+          
+          if (results.data && results.data.length > 0) {
+            setData(results.data);
+            
+            // Получаем список столбцов
+            const allColumns = results.meta.fields || [];
+            setColumns(allColumns);
+            addDebugInfo(`Найдено столбцов: ${allColumns.join(', ')}`);
+            
+            // Определяем числовые столбцы
+            const numericColumns = allColumns.filter(col => {
+              return results.data.some(row => 
+                row[col] !== null && row[col] !== undefined && typeof row[col] === 'number'
+              );
+            });
+            
+            addDebugInfo(`Числовые столбцы: ${numericColumns.join(', ')}`);
+          } else {
+            addDebugInfo("Внимание: Данные пусты или отсутствуют");
+          }
+          
+          setLoading(false);
+        },
+        error: (error) => {
+          addDebugInfo(`Ошибка при парсинге данных: ${error}`);
+          setError(`Ошибка при обработке данных: ${error}`);
+          setLoading(false);
+        }
+      });
     };
     
     fetchData();
@@ -112,6 +158,31 @@ const DataVisualizationDashboard = () => {
       <div className="p-4">
         <div className="text-xl font-bold text-red-500 mb-4">{error}</div>
         {renderDebugInfo()}
+        
+        {/* Возможность загрузить файл вручную */}
+        <div className="mt-6 p-4 border rounded bg-white">
+          <h3 className="font-bold mb-2">Загрузить файл вручную</h3>
+          <p className="mb-2">Если автоматическая загрузка не удалась, вы можете загрузить файл вручную:</p>
+          <input 
+            type="file" 
+            accept=".csv,.xls,.xlsx"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const fileContent = event.target.result;
+                  parseCSV(fileContent);
+                };
+                reader.onerror = (err) => {
+                  setError(`Ошибка чтения файла: ${err}`);
+                };
+                reader.readAsText(file);
+              }
+            }}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+        </div>
       </div>
     );
   }
@@ -123,6 +194,7 @@ const DataVisualizationDashboard = () => {
       
       <div className="bg-blue-50 p-4 rounded mb-4">
         <h2 className="text-xl font-semibold mb-2">Информация о данных</h2>
+        <p>Тип файла: <strong>{fileType === 'excel' ? 'Excel (.xls/.xlsx)' : 'CSV'}</strong></p>
         <p>Количество строк: <strong>{data.length}</strong></p>
         <p>Количество столбцов: <strong>{columns.length}</strong></p>
         <p>Столбцы: <strong>{columns.join(', ')}</strong></p>

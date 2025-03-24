@@ -3,7 +3,7 @@ import os
 import json
 from datetime import datetime
 import pandas as pd
-from .analysis import process_csv
+from .analysis import process_type
 from .utils import ensure_dir_exists, generate_unique_id, save_uploaded_file, create_file_copies
 
 def setup_routes(app, bot):
@@ -37,11 +37,11 @@ def setup_routes(app, bot):
             file_copies = create_file_copies(file_path, analysis_id)
             
             # Проверяем расширение файла
-            if file.filename.endswith('.csv'):
+            if file.filename.endswith(('.csv', '.xls', '.xlsx')):
                 # Обрабатываем файл
-                visualizations = process_csv(file_path, analysis_dir)
+                visualizations = process_type(file_path, analysis_dir)
             else:
-                return jsonify({'error': 'Неподдерживаемый тип файла. Поддерживаются только CSV.'}), 400
+                return jsonify({'error': 'Неподдерживаемый тип файла.'}), 400
             
             # Генерируем URL веб-приложения
             web_app_url = f"/analysis/{analysis_id}"

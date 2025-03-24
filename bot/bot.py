@@ -13,8 +13,9 @@ def handle_document(message):
         bot = telebot.TeleBot(BOT_TOKEN)
         
         # Проверяем, что это CSV файл
-        if not message.document.file_name.endswith('.csv'):
-            bot.reply_to(message, "Пожалуйста, отправьте CSV файл.")
+        if not message.document.file_name.endswith(('.csv', '.xls', '.xlsx')):
+
+            bot.reply_to(message, "Пожалуйста, отправьте CSV/XLS/XLSX файл.")
             return
             
         # Получаем информацию о файле
