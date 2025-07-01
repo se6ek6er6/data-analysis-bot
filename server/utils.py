@@ -4,8 +4,7 @@ import shutil
 
 def ensure_dir_exists(directory):
     """Убедиться, что директория существует, создать если нет"""
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    os.makedirs(directory, exist_ok=True)
 
 def generate_unique_id():
     """Сгенерировать уникальный ID для анализа"""

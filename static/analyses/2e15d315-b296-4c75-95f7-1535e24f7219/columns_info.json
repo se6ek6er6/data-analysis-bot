@@ -1,0 +1,1 @@
+{"total_columns": 6, "total_rows": 2000, "columns": {"Date": "datetime64[ns]", "Country": "object", "Product": "object", "Sales Person": "object", "Amount": "float64", "Boxes Shipped": "int64"}}

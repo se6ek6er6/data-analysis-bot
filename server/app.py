@@ -37,7 +37,7 @@ def setup_routes(app, bot):
             file_copies = create_file_copies(file_path, analysis_id)
             
             # Проверяем расширение файла
-            if file.filename.endswith(('.csv', '.xls', '.xlsx')):
+            if file.filename and file.filename.endswith(('.csv', '.xls', '.xlsx')):
                 # Обрабатываем файл
                 visualizations = process_type(file_path, analysis_dir)
             else:
@@ -58,10 +58,13 @@ def setup_routes(app, bot):
             with open(os.path.join(analysis_dir, 'metadata.json'), 'w') as f:
                 json.dump(metadata, f)
             
+            # Подсчитываем только реальные графики (исключаем stats, error и другие не-графики)
+            real_visualizations = [viz for viz in visualizations if viz.get('type') not in ['stats', 'error', 'advanced_stats', 'report']]
+            
             return jsonify({
                 'web_app_url': web_app_url, 
                 'analysis_id': analysis_id,
-                'visualizations_count': len(visualizations)
+                'visualizations_count': len(real_visualizations)
             })
             
         except Exception as e:
@@ -191,3 +194,87 @@ ReactDOM.render(
         return send_from_directory(os.path.dirname(js_file_path), 
                                 os.path.basename(js_file_path), 
                                 mimetype='application/javascript')
+
+    @app.route('/advanced/<analysis_id>')
+    def advanced_analysis(analysis_id):
+        analysis_dir = os.path.join(app.static_folder, 'analyses', analysis_id)
+        if not os.path.exists(analysis_dir):
+            return "Анализ не найден", 404
+        # Загружаем статистику и визуализации
+        try:
+            stats_path = os.path.join(analysis_dir, 'stats.json')
+            if not os.path.exists(stats_path):
+                return f"Файл статистики не найден: {stats_path}", 404
+                
+            with open(stats_path, 'r', encoding='utf-8') as f:
+                stats = json.load(f)
+            with open(os.path.join(analysis_dir, 'metadata.json'), 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+            visualizations = metadata.get('visualizations', [])
+            # Инсайты
+            insights = stats.get('advanced_analysis', {}).get('insights', [])
+            # Считаем числовые и категориальные переменные
+            numerical_count = len([col for col, dtype in stats['numeric_stats'].items()]) if 'numeric_stats' in stats else 0
+            categorical_count = 0
+            if 'advanced_analysis' in stats:
+                for key in stats['advanced_analysis']:
+                    if key.startswith('categorical_'):
+                        categorical_count += 1
+            return render_template(
+                'advanced_analysis.html',
+                analysis_id=analysis_id,
+                stats=stats,
+                visualizations=visualizations,
+                insights=insights,
+                numerical_count=numerical_count,
+                categorical_count=categorical_count
+            )
+        except Exception as e:
+            return f"Ошибка загрузки продвинутого анализа: {str(e)}", 500
+
+    @app.route('/report/<analysis_id>')
+    def comprehensive_report(analysis_id):
+        analysis_dir = os.path.join(app.static_folder, 'analyses', analysis_id)
+        if not os.path.exists(analysis_dir):
+            return "Анализ не найден", 404
+        try:
+            stats_path = os.path.join(analysis_dir, 'stats.json')
+            if not os.path.exists(stats_path):
+                return f"Файл статистики не найден: {stats_path}", 404
+                
+            with open(stats_path, 'r', encoding='utf-8') as f:
+                stats = json.load(f)
+            with open(os.path.join(analysis_dir, 'metadata.json'), 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+            
+            # Загружаем интерактивные графики из interactive_plots.json
+            interactive_plots = []
+            interactive_plots_path = os.path.join(analysis_dir, 'interactive_plots.json')
+            if os.path.exists(interactive_plots_path):
+                with open(interactive_plots_path, 'r', encoding='utf-8') as f:
+                    interactive_data = json.load(f)
+                    interactive_plots = list(interactive_data.get('plots', {}).values())
+            
+            # Объединяем обычные и интерактивные графики
+            visualizations = metadata.get('visualizations', []) + interactive_plots
+            
+            insights = stats.get('advanced_analysis', {}).get('insights', [])
+            numerical_count = len([col for col, dtype in stats['numeric_stats'].items()]) if 'numeric_stats' in stats else 0
+            categorical_count = 0
+            if 'advanced_analysis' in stats:
+                for key in stats['advanced_analysis']:
+                    if key.startswith('categorical_'):
+                        categorical_count += 1
+            return render_template(
+                'comprehensive_report.html',
+                analysis_id=analysis_id,
+                stats=stats,
+                visualizations=visualizations,
+                insights=insights,
+                numerical_count=numerical_count,
+                categorical_count=categorical_count,
+                file_name=metadata['file_name'],
+                created_at=metadata.get('created_at', 'Неизвестно')
+            )
+        except Exception as e:
+            return f"Ошибка загрузки отчета: {str(e)}", 500

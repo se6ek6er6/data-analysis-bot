@@ -5,4 +5,5 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-SERVER_URL = os.getenv('SERVER_URL')
+# Для локальной разработки используем localhost, если SERVER_URL не задан
+SERVER_URL = os.getenv('SERVER_URL', 'http://localhost:5000')

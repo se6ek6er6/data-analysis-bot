@@ -11,6 +11,8 @@ app = Flask(__name__,
             static_folder='static')
 
 # Настройка бота
+if BOT_TOKEN is None:
+    raise ValueError("BOT_TOKEN не найден в переменных окружения")
 bot = telebot.TeleBot(BOT_TOKEN)
 
 @bot.message_handler(commands=['start', 'help'])
@@ -35,7 +37,8 @@ def webhook():
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
         print(f"Received update: {json_string}")  # Логирование содержимого запроса
-        bot.process_new_updates([update])
+        if update is not None:
+            bot.process_new_updates([update])
         return "OK", 200
     else:
         return "Method Not Allowed", 405
